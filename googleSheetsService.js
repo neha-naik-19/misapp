@@ -2,13 +2,16 @@ const { google } = require("googleapis");
 const sheets = google.sheets("v4");
 
 const SCOPES = ["https://www.googleapis.com/auth/spreadsheets"];
-const spreadsheetId = "1IUBE1QjigsLsrYMe9AzpWDGA7OmMqvoSk5Djh5A88V4";
+// const spreadsheetId = "1IUBE1QjigsLsrYMe9AzpWDGA7OmMqvoSk5Djh5A88V4";
+const spreadsheetId = "1UlhN-IsiaT6bTbFHAWop7iu5L9tmx_HGq6Ct3yxqDyI";
 const sheetName = "Sheet1";
 
 const getAuthToken = async () => {
   const auth = new google.auth.GoogleAuth({
-    keyFile: "./service_account_credentials.json",
-    projectId: "course-401211",
+    // keyFile: "./service_account_credentials.json",
+    // projectId: "course-401211",
+    keyFile: "./course_allocation.json",
+    projectId: "bits-goa-csis",
     scopes: SCOPES,
   });
   const authToken = await auth.getClient();
