@@ -22,3 +22,6 @@
 sheet ID :- 1UlhN-IsiaT6bTbFHAWop7iu5L9tmx_HGq6Ct3yxqDyI
 
 goolesheet address :- https://docs.google.com/spreadsheets/d/1UlhN-IsiaT6bTbFHAWop7iu5L9tmx_HGq6Ct3yxqDyI/edit#gid=0
+
+ta-allocation google sheet : -
+https://docs.google.com/spreadsheets/d/1l8iaW0o0wH9ksFxXc6wM5EnDNYHL76623r1Vu8T0i9M/edit?pli=1#gid=0

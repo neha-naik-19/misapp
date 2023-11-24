@@ -7,10 +7,18 @@ const router = express.Router();
 const app = express();
 var cors = require("cors");
 const { response, request } = require("express");
+var async = require("async");
+var moment = require("moment");
+var date = require("date-and-time");
 
-const port = 3000;
+const port = 3001;
 
 const { getAuthToken, appendData } = require("./googleSheetsService.js");
+
+const {
+  getAuthTokenTa,
+  appendDataTa,
+} = require("./googleSheetsService_taallocation.js");
 
 // Multer middleware for file uploads
 const storage = multer.memoryStorage();
@@ -36,6 +44,7 @@ const pool = mysql.createPool({
   user: "root",
   password: "",
   database: "csis", //csis
+  // dateStrings: true,
 });
 
 // app.get("/", (req, res) => {
@@ -85,6 +94,14 @@ router.route("/postcourse").post((req, res) => {
   });
 });
 
+router.route("/post_ta_allocation").post((req, res) => {
+  pool.getConnection((err, connection) => {
+    if (err) throw err;
+
+    const params = req.body;
+  });
+});
+
 router.route("/add-faculty-preference").post((req, res) => {
   pool.getConnection((err, connection) => {
     const {
@@ -112,7 +129,7 @@ router.route("/add-faculty-preference").post((req, res) => {
     // Insert new entry into FACULTYPREFERNCE table
     let insertQuery = `
         INSERT INTO facultypreference (
-            courseid,
+            faculty_id,
             course_code,
             preference,
             facultyrole,
@@ -183,6 +200,7 @@ router.route("/add-faculty-preference").post((req, res) => {
   });
 });
 
+//allot course to faculty and update in Google Sheet
 router.route("/allot-course").post((req, res) => {
   try {
     pool.getConnection((err, connection) => {
@@ -250,6 +268,218 @@ router.route("/allot-course").post((req, res) => {
       error: "Failed to create sample ALLOC statement",
     });
   }
+});
+
+//Add TA preference for students
+router.route("/allot-ta-allocation").post((req, res) => {
+  const sql = `CALL GetDataFotTaAllocation()`;
+
+  const coursepreference1 = `select tacou.coursepreference1, COUNT(tacou.coursepreference1) cnt from tacoursepreference 
+                          tacou left join course cou ON tacou.coursepreference1 = cou.courseid
+                          GROUP BY tacou.coursepreference1 ORDER BY cnt;`;
+
+  const coursepreference2 = `select tacou.coursepreference2, COUNT(tacou.coursepreference2) cnt, cat from tacoursepreference 
+  tacou left join course cou ON tacou.coursepreference2 = cou.courseid
+  GROUP BY tacou.coursepreference2 ORDER BY cat, cnt ;`;
+
+  const coursepreference3 = `select tacou.coursepreference3, COUNT(tacou.coursepreference3) cnt, cat from tacoursepreference 
+  tacou left join course cou ON tacou.coursepreference3 = cou.courseid
+  GROUP BY tacou.coursepreference3 ORDER BY cat, cnt ;`;
+
+  const coursepreference4 = `select tacou.coursepreference4, COUNT(tacou.coursepreference4) cnt, cat from tacoursepreference 
+  tacou left join course cou ON tacou.coursepreference4 = cou.courseid
+  GROUP BY tacou.coursepreference4 ORDER BY cat, cnt ;`;
+
+  const coursepreference5 = `select tacou.coursepreference5, COUNT(tacou.coursepreference5) cnt, cat from tacoursepreference 
+  tacou left join course cou ON tacou.coursepreference5 = cou.courseid
+  GROUP BY tacou.coursepreference5 ORDER BY cat, cnt ;`;
+
+  // const studentDetails = `select student_id, name,cat, recordtimestamp, coursepreference1, coursepreference2, coursepreference3,
+  //                           coursepreference4, coursepreference5 from tacoursepreference WHERE status = 1 ORDER by cat, recordtimestamp,
+  //                           coursepreference1, coursepreference2, coursepreference3, coursepreference4, coursepreference5;`;
+
+  const studentDetails = `CALL GetSteudentDetails();`;
+
+  var return_data = {};
+
+  async.parallel(
+    [
+      function (parallel_done) {
+        pool.query(sql, {}, function (err, results) {
+          if (err) return parallel_done(err);
+          return_data.sql = results[0];
+          parallel_done();
+        });
+      },
+      function (parallel_done) {
+        pool.query(coursepreference1, {}, function (err, results) {
+          if (err) return parallel_done(err);
+          return_data.coursepreference1 = results;
+          parallel_done();
+        });
+      },
+      function (parallel_done) {
+        pool.query(coursepreference2, {}, function (err, results) {
+          if (err) return parallel_done(err);
+          return_data.coursepreference2 = results;
+          parallel_done();
+        });
+      },
+      function (parallel_done) {
+        pool.query(coursepreference3, {}, function (err, results) {
+          if (err) return parallel_done(err);
+          return_data.coursepreference3 = results;
+          parallel_done();
+        });
+      },
+      function (parallel_done) {
+        pool.query(coursepreference4, {}, function (err, results) {
+          if (err) return parallel_done(err);
+          return_data.coursepreference4 = results;
+          parallel_done();
+        });
+      },
+      function (parallel_done) {
+        pool.query(coursepreference5, {}, function (err, results) {
+          if (err) return parallel_done(err);
+          return_data.coursepreference5 = results;
+          parallel_done();
+        });
+      },
+      function (parallel_done) {
+        pool.query(studentDetails, {}, function (err, results) {
+          if (err) return parallel_done(err);
+          return_data.studentDetails = results[0];
+          parallel_done();
+        });
+      },
+    ],
+    async function (err) {
+      if (err) console.log(err);
+      // pool.end();
+
+      const finalwrite = [];
+      const auth = await getAuthTokenTa();
+
+      let getPhdPreferenceStudents = return_data.studentDetails.filter(
+        (i) => i["cat"] === "phd"
+      );
+
+      let getHdPreferenceStudents = return_data.studentDetails.filter(
+        (i) => i["cat"] === "hdta1y" || i["cat"] === "hdta2y"
+      );
+
+      let getFdPreferenceStudents = return_data.studentDetails.filter(
+        (i) => i["cat"] === "fdta"
+      );
+
+      let pref1 = [];
+
+      getPhdPreferenceStudents.forEach((data) => {
+        pref1.push(
+          return_data.coursepreference1.filter(
+            (elem) => elem.coursepreference1 === data.coursepreference1
+          )
+        );
+      });
+
+      let result = [];
+      let i = 0;
+
+      return_data.studentDetails.forEach((data) => {
+        let {
+          recordtimestamp,
+          cat,
+          student_id,
+          name,
+          coursepreference1,
+          cname1,
+          alloted,
+        } = data;
+
+        for (let index = 0; index < getPhdPreferenceStudents.length; index++) {
+          if (student_id === getPhdPreferenceStudents[index]["student_id"]) {
+            if (alloted === undefined)
+              alloted = `${cname1} (${coursepreference1})`;
+            break;
+          }
+        }
+
+        for (let index = 0; index < getHdPreferenceStudents.length; index++) {
+          if (student_id === getHdPreferenceStudents[index]["student_id"]) {
+            if (alloted === undefined)
+              alloted = `${cname1} (${coursepreference1})`;
+            break;
+          }
+        }
+
+        for (let index = 0; index < getFdPreferenceStudents.length; index++) {
+          if (student_id === getFdPreferenceStudents[index]["student_id"]) {
+            if (alloted === undefined)
+              alloted = `${cname1} (${coursepreference1})`;
+            break;
+          }
+        }
+
+        result.push({
+          recordtimestamp,
+          cat,
+          student_id,
+          name,
+          coursepreference1,
+          cname1,
+          alloted,
+        });
+
+        console.log(result);
+
+        result.forEach((data) => {
+          for (let index = 0; index < sql.length; index++) {
+            const element = sql[index]["courseid"];
+          }
+        });
+
+        // for (let index = 0; index < pref1.length; index++) {
+        //   const element = pref1[index];
+        //   console.log(element);
+
+        //   // result.push(student_id: )
+        // }
+
+        // alloted = "test";
+
+        const data1 = [
+          moment(recordtimestamp).format("YYYY/MM/DD HH:mm:ss"),
+          cat,
+          student_id,
+          name,
+          alloted,
+        ];
+        // finalwrite.push(data1);
+      });
+
+      // console.log(typeof return_data.studentDetails);
+
+      // console.log(getHdPreferenceStudents);
+
+      // return_data.studentDetails.forEach((data) => {
+      //   const { student_id, name, cat, recordtimestamp } = data;
+
+      //   const data1 = [student_id, name, cat, recordtimestamp];
+      //   // finalwrite.push(data1);
+      // });
+
+      appendDataTa(auth, finalwrite);
+      res.status(201).json({
+        // message: "TA allocation done",
+        // message: return_data.studentDetails,
+        phd: return_data.sql,
+        // pref: pref1,
+      });
+
+      // res.send(return_data);
+    }
+  );
 });
 
 app.listen(port, () => {
