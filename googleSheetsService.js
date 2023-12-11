@@ -95,10 +95,24 @@ const appendData = (auth, values) => {
       spreadsheetId,
       sheetName,
       auth,
-      range: sheetName,
+      // range: sheetName,
+      range: "A2",
       values,
     });
     console.log("Appended data");
+  } catch (error) {
+    console.log(error.message, error.stack);
+  }
+};
+
+var range = "A2:G200";
+const clearData = async (auth) => {
+  try {
+    sheets.spreadsheets.values.clear({
+      spreadsheetId,
+      range,
+      auth,
+    });
   } catch (error) {
     console.log(error.message, error.stack);
   }
@@ -109,4 +123,5 @@ module.exports = {
   readData,
   updateData,
   appendData,
+  clearData,
 };

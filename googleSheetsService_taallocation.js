@@ -60,6 +60,19 @@ const appendSpreadSheetValues = async ({
   });
 };
 
+var range = "A2:H400";
+const clearDataTa = async (auth) => {
+  try {
+    sheets.spreadsheets.values.clear({
+      spreadsheetId,
+      range,
+      auth,
+    });
+  } catch (error) {
+    console.log(error.message, error.stack);
+  }
+};
+
 const readData = async (auth) => {
   try {
     const response = await getSpreadSheetValues({
@@ -94,7 +107,8 @@ const appendDataTa = (auth, values) => {
       spreadsheetId,
       sheetName,
       auth,
-      range: sheetName,
+      // range: sheetName,
+      range: "A2",
       values,
     });
     console.log("Appended data");
@@ -108,4 +122,5 @@ module.exports = {
   readData,
   updateData,
   appendDataTa,
+  clearDataTa,
 };
